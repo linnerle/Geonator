@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geonator - Georgia Place Guessing Game</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="images/favicon.ico">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="game-container">
+            <!-- Left panel: Game interface -->
+            <div class="game-panel">
+                <div id="startScreen" class="screen active">
+                    <h2>Welcome to Geonator!</h2>
+                    <p>Think of any place in Georgia (restaurant, park, school, landmark, etc.)</p>
+                    <p>I'll ask you questions to guess what you're thinking of, using a local machine learning model—no internet AI required!</p>
+                    <p style="font-size: 0.95em; color: #888;">All question logic runs in your browser using a decision tree. No OpenAI, no server, no cost.</p>
+                    <button id="startBtn" class="btn btn-primary btn-large">Start Game</button>
+                </div>
+
+                <div id="questionScreen" class="screen">
+                    <div class="stats">
+                        <span>Questions: <span id="questionNum">0 / 20</span></span>
+                        <span id="candidateCount" class="candidates">Loading...</span>
+                    </div>
+                    
+                    <div class="question-box">
+                        <h2 id="questionText">Loading question...</h2>
+                        <div id="questionDescription" class="question-description">&nbsp;</div>
+                    </div>
+
+                    <div class="answer-buttons">
+                        <button class="btn btn-yes" data-answer="yes">✓ Yes</button>
+                        <button class="btn btn-probably" data-answer="probably">+ Probably</button>
+                        <button class="btn btn-unknown" data-answer="unknown">? Don't Know</button>
+                        <button class="btn btn-probably-not" data-answer="probably-not">- Probably Not</button>
+                        <button class="btn btn-no" data-answer="no">✗ No</button>
+                    </div>
+
+                    <div class="controls">
+                        <button id="undoBtn" class="btn btn-secondary btn-small btn-icon-undo" title="Undo"></button>
+                        <button id="viewTreeBtn" class="btn btn-secondary btn-small btn-icon-list" title="View Questions"></button>
+                        <button id="restartBtn" class="btn btn-secondary btn-small btn-icon-restart" title="Restart"></button>
+                    </div>
+                </div>
+
+                <div id="resultScreen" class="screen">
+                    <h2 id="resultTitle">I've got it!</h2>
+                    <div class="result-box">
+                        <h3 id="guessedPlace">Place Name</h3>
+                        <p id="guessedDetails">Details...</p>
+                    </div>
+                    <div class="result-buttons">
+                        <button id="viewFinalTreeBtn" class="btn btn-primary">View Decision Tree</button>
+                        <button id="playAgainBtn" class="btn btn-primary">Play Again</button>
+                    </div>
+                </div>
+
+                <div id="guessScreen" class="screen">
+                    <h2>Is it...</h2>
+                    <div class="guess-box">
+                        <h3 id="guessPlace">Place Name</h3>
+                        <p id="guessDetails">Details...</p>
+                    </div>
+                    <div class="guess-buttons">
+                        <button id="guessCorrectBtn" class="btn btn-yes btn-large">✓ Yes, That's It!</button>
+                        <button id="guessWrongBtn" class="btn btn-no btn-large">✗ No, Keep Asking</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right panel: Map + Top Candidates List -->
+            <div class="map-candidates-panel">
+                <div class="map-panel">
+                    <div class="map-finder minimized" id="mapFinder">
+                        <div class="map-overlay-header">
+                            <span class="map-overlay-title">Location Finder</span>
+                            <button id="mapFinderToggle" class="map-overlay-toggle map-finder-toggle" type="button" aria-expanded="false" aria-label="Show location finder" title="Show location finder"></button>
+                        </div>
+                        <div class="map-finder-body">
+                            <div class="map-finder-row">
+                                <select id="finderCounty" class="map-finder-select">
+                                    <option value="">Select county</option>
+                                </select>
+                                <select id="finderCity" class="map-finder-select">
+                                    <option value="">Select county first</option>
+                                </select>
+                                <input id="finderPlaceInput" class="map-finder-select map-finder-input" list="finderPlaceOptions" type="text" placeholder="Type a viable place" disabled />
+                                <datalist id="finderPlaceOptions"></datalist>
+                                <button id="finderGoBtn" class="btn btn-primary map-finder-btn">Find</button>
+                                <button id="finderResetBtn" class="btn btn-secondary map-finder-btn">Reset</button>
+                            </div>
+                            <div class="map-finder-nav" id="finderNav" aria-label="Search result navigation">
+                                <button id="finderPrevBtn" class="map-finder-nav-btn" type="button" aria-label="Previous match">◀</button>
+                                <span id="finderNavStatus" class="map-finder-nav-status">No active search</span>
+                                <button id="finderNextBtn" class="map-finder-nav-btn" type="button" aria-label="Next match">▶</button>
+                            </div>
+                            <div id="finderCount" class="map-finder-count"></div>
+                        </div>
+                    </div>
+                    <div id="map"></div>
+                    <div class="map-legend">
+                        <div class="map-overlay-header">
+                            <span class="map-overlay-title">Legend</span>
+                            <button id="mapLegendToggle" class="map-overlay-toggle map-legend-toggle" type="button" aria-expanded="true" aria-label="Hide legend" title="Hide legend">x</button>
+                        </div>
+                        <div class="map-legend-body">
+                            <div class="legend-item"><span class="legend-dot" style="background: #CC0000;"></span>Food & Dining</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #9B59B6;"></span>Shopping</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #0039A6;"></span>Education</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #27AE60;"></span>Healthcare</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #00AEEF;"></span>Tourism</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #16A085;"></span>Accommodation</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #E67E22;"></span>Recreation</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #0071CE;"></span>Government</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #F39C12;"></span>Transportation</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #97CAEB;"></span>Cities/Towns</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #767679;"></span>Utilities</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: #E91E63;"></span>Personal Places</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="candidates-list-panel">
+                    <h3 class="candidates-list-title">Candidates</h3>
+                    <ol id="candidatesList" class="candidates-list"></ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Decision Tree Modal -->
+        <div id="treeModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Questions asked</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="decisionTree"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script>
+        (function () {
+            if (typeof MouseEvent === 'undefined') return;
+
+            try {
+                const proto = MouseEvent.prototype;
+                const hasMozPressure = Object.prototype.hasOwnProperty.call(proto, 'mozPressure') || 'mozPressure' in proto;
+                const hasMozInputSource = Object.prototype.hasOwnProperty.call(proto, 'mozInputSource') || 'mozInputSource' in proto;
+
+                if (hasMozPressure) {
+                    Object.defineProperty(proto, 'mozPressure', {
+                        configurable: true,
+                        get() {
+                            return typeof this.pressure === 'number' ? this.pressure : 0;
+                        }
+                    });
+                }
+
+                if (hasMozInputSource) {
+                    Object.defineProperty(proto, 'mozInputSource', {
+                        configurable: true,
+                        get() {
+                            if (this.pointerType === 'mouse') return 1;
+                            if (this.pointerType === 'pen') return 2;
+                            if (this.pointerType === 'touch') return 5;
+                            return 0;
+                        }
+                    });
+                }
+            } catch (error) {
+            }
+        })();
+    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
+    
+    <!-- Game Logic -->
+    <script src="questions.js"></script>
+    <script type="module" src="game.js"></script>
+</body>
+</html>
