@@ -5231,9 +5231,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button id="startBtn" class="btn btn-primary btn-large">Start Game</button>
     `;
 
-    // Paint map progressively in the background
+    // Markers are already painted progressively during loadData via renderInitialPlacesChunk().
+    // Avoid an immediate full redraw here for faster startup responsiveness.
     requestAnimationFrame(() => {
-        showAllPlacesOnMap();
+        updateMapLegend();
         refreshLocationFinder();
     });
 
